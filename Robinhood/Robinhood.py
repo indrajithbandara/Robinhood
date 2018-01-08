@@ -18,6 +18,7 @@ import json
 #Application-specific imports
 from . import exceptions as RH_exception
 from .Order import Order
+from .WatchList import WatchList
 
 class Bounds(Enum):
     """Enum for bounds in `historicals` endpoint """
@@ -769,6 +770,12 @@ class Robinhood:
         res = self.session.get(self.endpoints['orders']).json()['results']
         return [Order(r['url'],self,url_directly = True) for r in res]
 
+    def cancel_all_orders(self):
+        for order in self.order_history():
+            try:
+                order.cancel()
+            except:
+                pass
 
     def dividends(self):
         """Wrapper for portfolios
@@ -1029,5 +1036,20 @@ class Robinhood:
         params['side'] = 'sell'
         params.pop('self')
         return self.place_stop_limit_order(**params)
+
+    def get_watch_list(self,name = 'Default',url = None):
+        return WatchList(
+            name = name,
+            url = url,
+            trader = self,
+            to_create = False
+            )
+
+    def create_watch_list(self,name):
+        return WatchList(
+            name = name,
+            trader = self,
+            to_create = True
+            )
 
 
