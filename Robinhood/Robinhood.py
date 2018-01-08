@@ -14,10 +14,10 @@ from six.moves import input
 import getpass
 import requests
 import six
-
+import json
 #Application-specific imports
 from . import exceptions as RH_exception
-
+from .Order import Order
 
 class Bounds(Enum):
     """Enum for bounds in `historicals` endpoint """
@@ -766,8 +766,8 @@ class Robinhood:
             Returns:
                 (:obj:`dict`): JSON dict from getting orders
         """
-
-        return self.session.get(self.endpoints['orders']).json()
+        res = self.session.get(self.endpoints['orders']).json()['results']
+        return [Order(r['url'],self,url_directly = True) for r in res]
 
 
     def dividends(self):
@@ -808,480 +808,226 @@ class Robinhood:
     #                               PLACE ORDER
     ###########################################################################
 
-    def place_order(self,
-                    instrument,
-                    quantity=1,
-                    bid_price=0.0,
-                    transaction=None,
-                    trigger='immediate',
-                    order='market',
-                    time_in_force = 'gfd'):
-        """Place an order with Robinhood
-
-            Notes:
-                OMFG TEST THIS PLEASE!
-
-                Just realized this won't work since if type is LIMIT you need to use "price" and if
-                a STOP you need to use "stop_price".  Oops.
-                Reference: https://github.com/sanko/Robinhood/blob/master/Order.md#place-an-order
-
-            Args:
-                instrument (dict): the RH URL and symbol in dict for the instrument to be traded
-                quantity (int): quantity of stocks in order
-                bid_price (float): price for order
-                transaction (:enum:`Transaction`): BUY or SELL enum
-                trigger (:enum:`Trigger`): IMMEDIATE or STOP enum
-                order (:enum:`Order`): MARKET or LIMIT
-                time_in_force (:enum:`TIME_IN_FORCE`): GFD or GTC (day or until cancelled)
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
+    def place_order(self,**payload):
         """
-
-        if isinstance(transaction, str):
-            transaction = Transaction(transaction)
-
-        if not bid_price:
-            bid_price = self.quote_data(instrument['symbol'])['bid_price']
-
-        payload = {
-            'account': self.get_account()['url'],
-            'instrument': unquote(instrument['url']),
-            'price': float(bid_price),
-            'quantity': quantity,
-            'side': transaction.name.lower(),
-            'symbol': instrument['symbol'],
-            'time_in_force': time_in_force.lower(),
-            'trigger': trigger,
-            'type': order.lower()
-        }
-
-        #data = 'account=%s&instrument=%s&price=%f&quantity=%d&side=%s&symbol=%s#&time_in_force=gfd&trigger=immediate&type=market' % (
-        #    self.get_account()['url'],
-        #    urllib.parse.unquote(instrument['url']),
-        #    float(bid_price),
-        #    quantity,
-        #    transaction,
-        #    instrument['symbol']
-        #)
-
-        res = self.session.post(self.endpoints['orders'], data=payload)
-        res.raise_for_status()
-
-        return res
+        required parameters:
+            account             x in self
+            instrument          x   in pl
+            symbol              x     in instrument
+            type                x   in pl
+            time_in_force       x   in pl
+            trigger             x   in pl
+            quantity            x   in pl
+            side                x   in pl
+        parameters for limit order:
+            price               also required for market order??
+        parameters for stop order:
+            stop_price
+        optional parameters:
+            client_id
+            extended_hours
+            override_day_trade_checks
+            override_dtbp_checks
 
 
-    def place_buy_order(self,
-                        instrument,
-                        quantity,
-                        bid_price=0.0):
-        """Wrapper for placing buy orders
-
-            Args:
-                instrument (dict): the RH URL and symbol in dict for the instrument to be traded
-                quantity (int): quantity of stocks in order
-                bid_price (float): price for order
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-
+        scource: https://github.com/sanko/Robinhood/blob/master/Order.md
         """
+        assert 'instrument' in payload
+        assert 'type' in payload
+        assert 'time_in_force' in payload
+        assert 'trigger' in payload
+        assert 'quantity' in payload
+        assert 'side' in payload
 
-        transaction = Transaction.BUY
+        payload['account'] = self.get_account()['url']
+        instrument = payload.pop('instrument')
+        payload['instrument'] = unquote(instrument['url'])
+        payload['symbol'] = instrument['symbol']
+        
+        res = self.session.post(self.endpoints['orders'],data = payload)
+        #res.raise_for_status()
+        return Order(res.text,self)
 
-        return self.place_order(instrument, quantity, bid_price, transaction)
-
-
-    def place_sell_order(self,
-                         instrument,
-                         quantity,
-                         bid_price=0.0):
-        """Wrapper for placing sell orders
-
-            Args:
-                instrument (dict): the RH URL and symbol in dict for the instrument to be traded
-                quantity (int): quantity of stocks in order
-                bid_price (float): price for order
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-
-        transaction = Transaction.SELL
-
-        return self.place_order(instrument, quantity, bid_price, transaction)
-
-    # Methods below here are a complete rewrite for buying and selling
-    # These are new. Use at your own risk!
-
-    def place_market_buy_order(self,
-                               instrument_URL = None,
-                               symbol = None,
-                               time_in_force = None,
-                               quantity = None):
-        """Wrapper for placing market buy orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                quantity (int): Number of shares to buy
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'market',
-                                 trigger = 'immediate',
-                                 side = 'buy',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 quantity = quantity))
-
-    def place_limit_buy_order(self,
-                              instrument_URL = None,
-                              symbol = None,
-                              time_in_force = None,
-                              price = None,
-                              quantity = None):
-        """Wrapper for placing limit buy orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                price (float): The max price you're willing to pay per share
-                quantity (int): Number of shares to buy
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'limit',
-                                 trigger = 'immediate',
-                                 side = 'buy',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 price = price,
-                                 quantity = quantity))
-
-    def place_stop_loss_buy_order(self,
-                                  instrument_URL = None,
-                                  symbol = None,
-                                  time_in_force = None,
-                                  stop_price = None,
-                                  quantity = None):
-        """Wrapper for placing stop loss buy orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                stop_price (float): The price at which this becomes a market order
-                quantity (int): Number of shares to buy
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'market',
-                                 trigger = 'stop',
-                                 side = 'buy',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 stop_price = stop_price,
-                                 quantity = quantity))
-
-    def place_stop_limit_buy_order(self,
-                                   instrument_URL = None,
-                                   symbol = None,
-                                   time_in_force = None,
-                                   stop_price = None,
-                                   price = None,
-                                   quantity = None):
-        """Wrapper for placing stop limit buy orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                stop_price (float): The price at which this becomes a limit order
-                price (float): The max price you're willing to pay per share
-                quantity (int): Number of shares to buy
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'limit',
-                                 trigger = 'stop',
-                                 side = 'buy',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 stop_price = stop_price,
-                                 price = price,
-                                 quantity = quantity))
-
-    def place_market_sell_order(self,
-                                instrument_URL = None,
-                                symbol = None,
-                                time_in_force = None,
-                                quantity = None):
-        """Wrapper for placing market sell orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                quantity (int): Number of shares to sell
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'market',
-                                 trigger = 'immediate',
-                                 side = 'sell',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 quantity= quantity))
-
-    def place_limit_sell_order(self,
-                               instrument_URL = None,
-                               symbol = None,
-                               time_in_force = None,
-                               price = None,
-                               quantity = None):
-        """Wrapper for placing limit sell orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                price (float): The minimum price you're willing to get per share
-                quantity (int): Number of shares to sell
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'limit',
-                                 trigger = 'immediate',
-                                 side = 'sell',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 price = price,
-                                 quantity = quantity))
-
-    def place_stop_loss_sell_order(self,
-                                   instrument_URL = None,
-                                   symbol = None,
-                                   time_in_force = None,
-                                   stop_price = None,
-                                   quantity = None):
-        """Wrapper for placing stop loss sell orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                stop_price (float): The price at which this becomes a market order
-                quantity (int): Number of shares to sell
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'market',
-                                 trigger = 'stop',
-                                 side = 'sell',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 stop_price = stop_price,
-                                 quantity = quantity))
-
-    def place_stop_limit_sell_order(self,
-                                    instrument_URL = None,
-                                    symbol = None,
-                                    time_in_force = None,
-                                    price = None,
-                                    stop_price = None,
-                                    quantity = None):
-        """Wrapper for placing stop limit sell orders
-
-            Notes:
-                If only one of the instrument_URL or symbol are passed as
-                arguments the other will be looked up automatically.
-
-            Args:
-                instrument_URL (str): The RH URL of the instrument
-                symbol (str): The ticker symbol of the instrument
-                time_in_force (str): 'GFD' or 'GTC' (day or until cancelled)
-                stop_price (float): The price at which this becomes a limit order
-                price (float): The max price you're willing to get per share
-                quantity (int): Number of shares to sell
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-        return(self.submit_order(order_type = 'limit',
-                                 trigger = 'stop',
-                                 side = 'sell',
-                                 instrument_URL = instrument_URL,
-                                 symbol = symbol,
-                                 time_in_force = time_in_force,
-                                 stop_price = stop_price,
-                                 price = price,
-                                 quantity = quantity))
-
-    def submit_order(self,
-                     instrument_URL = None,
-                     symbol = None,
-                     order_type = None,
-                     time_in_force = None,
-                     trigger = None,
-                     price = None,
-                     stop_price = None,
-                     quantity = None,
-                     side = None):
-        """Submits order to Robinhood
-
-            Notes:
-                This is normally not called directly.  Most programs should use
-                one of the following instead:
-
-                    place_market_buy_order()
-                    place_limit_buy_order()
-                    place_stop_loss_buy_order()
-                    place_stop_limit_buy_order()
-                    place_market_sell_order()
-                    place_limit_sell_order()
-                    place_stop_loss_sell_order()
-                    place_stop_limit_sell_order()
-
-            Args:
-                instrument_URL (str): the RH URL for the instrument
-                symbol (str): the ticker symbol for the instrument
-                order_type (str): 'MARKET' or 'LIMIT'
-                time_in_force (:enum:`TIME_IN_FORCE`): GFD or GTC (day or
-                                                       until cancelled)
-                trigger (str): IMMEDIATE or STOP enum
-                price (float): The share price you'll accept
-                stop_price (float): The price at which the order becomes a
-                                    market or limit order
-                quantity (int): The number of shares to buy/sell
-                side (str): BUY or sell
-
-            Returns:
-                (:obj:`requests.request`): result from `orders` put command
-        """
-
-        # Start with some parameter checks. I'm paranoid about $.
-        if(instrument_URL is None):
-            if(symbol is None):
-                raise(valueError('Neither instrument_URL nor symbol were passed to submit_order'))
-            instrument_URL = self.instruments(symbol)[0]['url']
-
-        if(symbol is None):
-            symbol = self.session.get(instrument_URL).json()['symbol']
-
-        if(side is None):
-            raise(valueError('Order is neither buy nor sell in call to submit_order'))
-
-        if(order_type == None):
-            if(price == None):
-                if(stop_price == None):
-                    order_type = 'market'
-                else:
-                    order_type = 'limit'
-
-        symbol = str(symbol).upper()
-        order_type = str(order_type).lower()
-        time_in_force = str(time_in_force).lower()
-        trigger = str(trigger).lower()
-        side = str(side).lower()
-
-        if(order_type != 'market') and (order_type != 'limit'):
-            raise(valueError('Invalid order_type in call to submit_order'))
-
-        if(order_type == 'limit'):
-            if(price is None):
-                raise(valueError('Limit order has no price in call to submit_order'))
-            if(price <= 0):
-                raise(valueError('Price must be positive number in call to submit_order'))
-
-        if(trigger == 'stop'):
-            if(stop_price is None):
-                raise(valueError('Stop order has no stop_price in call to submit_order'))
-            if(price <= 0):
-                raise(valueError('Stop_price must be positive number in call to submit_order'))
-
-        if(stop_price is not None):
-            if(trigger != 'stop'):
-                raise(valueError('Stop price set for non-stop order in call to submit_order'))
-
-        if(price is None):
-            if(order_type == 'limit'):
-                raise(valueError('Limit order has no price in call to submit_order'))
-
-        if(price is not None):
-            if(order_type.lower() == 'market'):
-                raise(valueError('Market order has price limit in call to submit_order'))
-
-        price = float(price)
-
-        if(quantity is None):
-            raise(valueError('No quantity specified in call to submit_order'))
-
+    def place_market_order(
+        self,
+        instrument = None,
+        time_in_force = 'gfd',
+        quantity = 1,
+        side = None
+        ):
+        assert instrument is not None
+        assert time_in_force in ['gfd','gtc','ioc','fok','opg']
         quantity = int(quantity)
+        assert side in ['buy','sell']
+        return self.place_order(
+            instrument = instrument,
+            type = 'market',
+            time_in_force = time_in_force,
+            trigger = 'immediate',
+            quantity = quantity,
+            side = side,
+            price = float(self.last_trade_price(instrument['symbol'])[0][0])
+            )
+    def place_limit_order(
+        self,
+        instrument = None,
+        price = 1,
+        time_in_force = 'gfd',
+        quantity = 1,
+        side = None
+        ):
+        assert instrument is not None
+        assert quantity >= 1
+        assert time_in_force is not None
+        price = float(price)
+        quantity = int(quantity)
+        assert price > 0
+        assert side in ['buy','sell']
+        return self.place_order(
+            instrument = instrument,
+            type = 'limit',
+            time_in_force = time_in_force,
+            trigger = 'immediate',
+            price = price,
+            quantity = quantity,
+            side = side
+            )
+    def place_stop_loss_order(
+        self,
+        instrument = None,
+        stop_price = 1,
+        time_in_force = 'gtc',
+        quantity = 1,
+        side = None
+        ):
+        assert instrument is not None
+        assert quantity >= 1
+        assert time_in_force in ['gfd','gtc','ioc','fok','opg']
+        stop_price = float(stop_price)
+        quantity = int(quantity)
+        assert stop_price > 0
+        assert side in ['buy','sell']
+        return self.place_order(
+            instrument = instrument,
+            type = 'market',
+            time_in_force = time_in_force,
+            stop_price = stop_price,
+            price = stop_price,
+            quantity = quantity,
+            trigger = 'stop',
+            side = side
+            )
+    def place_stop_limit_order(
+        self,
+        instrument = None,
+        stop_price = 1,
+        time_in_force = 'gtc',
+        quantity = 1,
+        side = None
+        ):
+        assert instrument is not None
+        assert quantity >= 1
+        assert time_in_force in ['gfd','gtc','ioc','fok','opg']
+        stop_price = float(stop_price)
+        quantity = int(quantity)
+        assert stop_price > 0
+        assert side in ['buy','sell']
+        return self.place_order(
+            instrument = instrument,
+            type = 'limit',
+            time_in_force = time_in_force,
+            quantity = quantity,
+            trigger = 'stop',
+            side = side
+            )
+        
 
-        if(quantity <= 0):
-            raise(valueError('Quantity must be positive number in call to submit_order'))
+    def place_market_buy_order(
+        self,
+        instrument = None,
+        time_in_force = 'gfd',
+        quantity = 1
+        ):
+        params = locals()
+        params['side'] = 'buy'
+        params.pop('self')
+        return self.place_market_order(**params)
+    def place_limit_buy_order(
+        self,
+        instrument = None,
+        price = 1,
+        time_in_force = 'gfd',
+        quantity = 1
+        ):
+        params = locals()
+        locals["side"] = 'buy'
+        params.pop('self')
+        return self.place_limit_order(**params)
+    def place_stop_loss_buy_order(
+        self,
+        instrument = None,
+        stop_price = 1,
+        time_in_force = 'gtc',
+        quantity = 1
+        ):
+        params = locals()
+        params['side'] = 'buy'
+        params.pop('self')
+        return self.place_stop_loss_order(**params)
+    def place_stop_limit_buy_order(
+        self,
+        instrument = None,
+        stop_price = 1,
+        time_in_force = 'gtc',
+        quantity = 1
+        ):
+        params = locals()
+        params['side'] = 'buy'
+        params.pop('self')
+        return self.place_stop_limit_order(**params)
+    
+    def place_market_sell_order(
+        self,
+        instrument = None,
+        time_in_force = 'gfd',
+        quantity = 1
+        ):
+        params = locals()
+        params['side'] = 'sell'
+        params.pop('self')
+        return place_market_order(**params)
+    def place_limit_sell_order(
+        self,
+        instrument = None,
+        price = 1,
+        time_in_force = 'gfd',
+        quantity = 1
+        ):
+        params = locals()
+        params['side'] = 'sell'
+        params.pop('self')
+        return self.place_limit_order(**params)
+    def place_stop_loss_sell_order(
+        self,
+        instrument = None,
+        stop_price = 1,
+        time_in_force = 'gtc',
+        quantity = 1
+        ):
+        params = locals()
+        params['side'] = 'sell'
+        params.pop('self')
+        return self.place_stop_loss_order(**params)
+    def place_stop_limit_sell_order(
+        self,
+        instrument = None,
+        stop_price = 1,
+        time_in_force = 'gtc',
+        quantity = 1
+        ):
+        params = locals()
+        params['side'] = 'sell'
+        params.pop('self')
+        return self.place_stop_limit_order(**params)
 
-        payload = {}
 
-        for field,value in [('account',self.get_account()['url']),
-                            ('instrument',instrument_URL),
-                            ('symbol',symbol),
-                            ('type',order_type),
-                            ('time_in_force', time_in_force),
-                            ('trigger',trigger),
-                            ('price',price),
-                            ('stop_price',stop_price),
-                            ('quantity',quantity),
-                            ('side',side)]:
-            if(value is not None):
-                payload[field] = value
-
-        res = self.session.post(self.endpoints['orders'], data=payload)
-        res.raise_for_status()
-
-        return res
