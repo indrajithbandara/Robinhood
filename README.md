@@ -1,13 +1,16 @@
 # Robinhood
 Python Framework to make trades with Robinhood Private API.
 See this [blog post](https://medium.com/@rohanpai25/reversing-robinhood-free-accessible-automated-stock-trading-f40fba1e7d8b).
-
+## Original Repo
+Project forked from https://github.com/Jamonek/Robinhood
 ## Current Features 
-- Placing buy orders (`Robinhood.place_buy_order`)
-- Placing sell order (`Robinhood.place_sell_order`)
+- Placing buy orders (`Robinhood.place_market_buy_order`)
+- Placing sell order (`Robinhood.place_market_sell_order`)
 - Quote information (`Robinhood.quote_data`)
 - User portfolio data (`Robinhood.portfolios`)
 - User positions data (`Robinhood.positions`)
+- Track an orders's status (`Order.state`)
+- Cancel an order (`Order.cancel`)
 - More coming soon
 
 ### How To Install:
