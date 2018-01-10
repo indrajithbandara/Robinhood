@@ -2,11 +2,17 @@
 import json
 class Order:
     def __init__(self,json_str,trader,url_directly = False):
+    	assert self.trader is not None
+    	self.trader = trader
         if url_directly:
             self.order = json_str
         else:
-            self.order = json.loads(json_str)['url']
-        self.trader = trader
+        	try:
+            	self.order = json.loads(json_str)['url']
+            except:
+            	self.order = None
+        
+        
     def cancel(self):
         return json.loads(self.trader.session.post(self.order+'cancel/').text)
     def check(self):

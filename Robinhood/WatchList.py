@@ -29,5 +29,5 @@ class WatchList:
 		return dict(zip(keys,values))
 	def get_symbols(self):
 		data = self.trader.session.get(self.url).json()['results']
-		return keys = [self.trader.session.get(et['instrument']).json()['symbol'] for et in data]
+		return [self.trader.session.get(et['instrument']).json()['symbol'] for et in data]
 
