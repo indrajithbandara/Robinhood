@@ -2,15 +2,15 @@
 import json
 class Order:
     def __init__(self,json_str,trader,url_directly = False):
-    	assert self.trader is not None
-    	self.trader = trader
+        assert trader is not None
+        self.trader = trader
         if url_directly:
             self.order = json_str
         else:
-        	try:
-            	self.order = json.loads(json_str)['url']
+            try:
+                self.order = json.loads(json_str)['url']
             except:
-            	self.order = None
+                self.order = None
         
         
     def cancel(self):

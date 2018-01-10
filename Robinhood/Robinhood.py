@@ -858,8 +858,8 @@ class Robinhood:
     def place_market_order(
         self,
         instrument = None,
-        time_in_force = 'gfd',
         quantity = 1,
+        time_in_force = 'gfd',
         side = None
         ):
         assert instrument is not None
@@ -877,10 +877,10 @@ class Robinhood:
             )
     def place_limit_order(
         self,
+        quantity = 1,
         instrument = None,
         price = 1,
         time_in_force = 'gfd',
-        quantity = 1,
         side = None
         ):
         assert instrument is not None
@@ -892,19 +892,19 @@ class Robinhood:
         assert side in ['buy','sell']
         return self.place_order(
             instrument = instrument,
+            quantity = quantity,
             type = 'limit',
             time_in_force = time_in_force,
             trigger = 'immediate',
             price = price,
-            quantity = quantity,
             side = side
             )
     def place_stop_loss_order(
         self,
         instrument = None,
+        quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc',
-        quantity = 1,
         side = None
         ):
         assert instrument is not None
@@ -927,9 +927,9 @@ class Robinhood:
     def place_stop_limit_order(
         self,
         instrument = None,
+        quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc',
-        quantity = 1,
         side = None
         ):
         assert instrument is not None
@@ -952,8 +952,8 @@ class Robinhood:
     def place_market_buy_order(
         self,
         instrument = None,
-        time_in_force = 'gfd',
-        quantity = 1
+        quantity = 1,
+        time_in_force = 'gfd'
         ):
         params = locals()
         params['side'] = 'buy'
@@ -962,9 +962,9 @@ class Robinhood:
     def place_limit_buy_order(
         self,
         instrument = None,
+        quantity = 1,
         price = 1,
-        time_in_force = 'gfd',
-        quantity = 1
+        time_in_force = 'gfd'
         ):
         params = locals()
         locals["side"] = 'buy'
@@ -973,9 +973,10 @@ class Robinhood:
     def place_stop_loss_buy_order(
         self,
         instrument = None,
+        quantity = 1,
         stop_price = 1,
-        time_in_force = 'gtc',
-        quantity = 1
+        time_in_force = 'gtc'
+
         ):
         params = locals()
         params['side'] = 'buy'
@@ -984,9 +985,10 @@ class Robinhood:
     def place_stop_limit_buy_order(
         self,
         instrument = None,
+        quantity = 1,
         stop_price = 1,
-        time_in_force = 'gtc',
-        quantity = 1
+        time_in_force = 'gtc'
+        
         ):
         params = locals()
         params['side'] = 'buy'
@@ -996,8 +998,8 @@ class Robinhood:
     def place_market_sell_order(
         self,
         instrument = None,
-        time_in_force = 'gfd',
-        quantity = 1
+        quantity = 1,
+        time_in_force = 'gfd'
         ):
         params = locals()
         params['side'] = 'sell'
@@ -1006,9 +1008,10 @@ class Robinhood:
     def place_limit_sell_order(
         self,
         instrument = None,
+        quantity = 1,
         price = 1,
-        time_in_force = 'gfd',
-        quantity = 1
+        time_in_force = 'gfd'
+        
         ):
         params = locals()
         params['side'] = 'sell'
@@ -1017,9 +1020,10 @@ class Robinhood:
     def place_stop_loss_sell_order(
         self,
         instrument = None,
+        quantity = 1,
         stop_price = 1,
-        time_in_force = 'gtc',
-        quantity = 1
+        time_in_force = 'gtc'
+        
         ):
         params = locals()
         params['side'] = 'sell'
@@ -1028,9 +1032,10 @@ class Robinhood:
     def place_stop_limit_sell_order(
         self,
         instrument = None,
+        quantity = 1,
         stop_price = 1,
-        time_in_force = 'gtc',
-        quantity = 1
+        time_in_force = 'gtc'
+        
         ):
         params = locals()
         params['side'] = 'sell'
