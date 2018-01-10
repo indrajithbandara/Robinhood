@@ -866,6 +866,17 @@ class Robinhood:
         assert time_in_force in ['gfd','gtc','ioc','fok','opg']
         quantity = int(quantity)
         assert side in ['buy','sell']
+        price = float(self.last_trade_price(instrument['symbol'])[0][0])
+        decs = 4 if price <1 else 2
+        if side == 'buy':
+        	price = price*1.005
+        else:
+        	price = price*0.995
+        min_tick_size = instrument['min_tick_size']
+        if not min_tick_size is None:
+        	min_tick_size = float(min_tick_size)
+        	price = (price//min_tick_size)*min_tick_size
+        price = round(price,decs)
         return self.place_order(
             instrument = instrument,
             type = 'market',
@@ -873,7 +884,7 @@ class Robinhood:
             trigger = 'immediate',
             quantity = quantity,
             side = side,
-            price = float(self.last_trade_price(instrument['symbol'])[0][0])
+            price = price
             )
     def place_limit_order(
         self,
@@ -1004,7 +1015,7 @@ class Robinhood:
         params = locals()
         params['side'] = 'sell'
         params.pop('self')
-        return place_market_order(**params)
+        return self.place_market_order(**params)
     def place_limit_sell_order(
         self,
         instrument = None,

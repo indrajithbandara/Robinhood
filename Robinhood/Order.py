@@ -10,6 +10,7 @@ class Order:
             try:
                 self.order = json.loads(json_str)['url']
             except:
+                print(json_str)
                 self.order = None
         
         
