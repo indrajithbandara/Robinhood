@@ -956,6 +956,8 @@ class Robinhood:
             time_in_force = time_in_force,
             quantity = quantity,
             trigger = 'stop',
+            stop_price = stop_price,
+            price = stop_price,
             side = side
             )
         
@@ -978,7 +980,7 @@ class Robinhood:
         time_in_force = 'gfd'
         ):
         params = locals()
-        locals["side"] = 'buy'
+        params["side"] = 'buy'
         params.pop('self')
         return self.place_limit_order(**params)
     def place_stop_loss_buy_order(
