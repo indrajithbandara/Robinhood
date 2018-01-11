@@ -566,7 +566,7 @@ class Robinhood:
                 (str): last update datetime
         """
 
-        return self.get_quote_list(stock, 'last_updated_at')
+        return self.get_quote_list(stock, 'updated_at')
 
 
     def last_updated_at_datetime(self, stock=''):
