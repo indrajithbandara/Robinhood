@@ -15,6 +15,8 @@ import getpass
 import requests
 import six
 import json
+
+import pandas as pd
 #Application-specific imports
 from . import exceptions as RH_exception
 from .Order import Order
@@ -329,7 +331,7 @@ class Robinhood:
         data = self.quote_data(stock)
         return data["symbol"]
 
-    def get_historical_quotes(self, stock, interval, span, bounds=Bounds.REGULAR):
+    def get_historical_quotes(self, scodes, interval = "5minute", span="week", bounds='regular'):
         """Fetch historical data for stock
 
             Note: valid interval/span configs
@@ -347,21 +349,27 @@ class Robinhood:
             Returns:
                 (:obj:`dict`) values returned from `historicals` endpoint
         """
-        if type(stock) is str:
-            stock = [stock]
 
-        if isinstance(bounds, str):  # recast to Enum
-            bounds = Bounds(bounds)
+        if isinstance(scodes,list):
+            scodes = ','.join(scodes)
+        scodes = scodes.upper()
 
         params = {
-            'symbols': ','.join(stock).upper(),
+            'symbols': scodes,
             'interval': interval,
             'span': span,
-            'bounds': bounds.name.lower()
+            'bounds': bounds.lower()
         }
 
-        res = self.session.get(self.endpoints['historicals'], params=params)
-        return res.json()
+        res = self.session.get(self.endpoints['historicals'], params=params).json()['results']
+        dfs = []
+        for r in res:
+            u = pd.DataFrame(r['historicals'])
+            u['begins_at'] = u['begins_at'].apply(lambda x:pd.datetime.strptime(x,"%Y-%m-%dT%H:%M:%SZ"))
+            u = u.set_index('begins_at')[['close_price','high_price','low_price','open_price','volume']]
+            u.columns = ["Close",'High','Low','Open','Volumn']
+            dfs.append(pd.DataFrame(u.astype(float)))
+        return dfs
 
 
     def get_news(self, stock):
@@ -869,13 +877,13 @@ class Robinhood:
         price = float(self.last_trade_price(instrument['symbol'])[0][0])
         decs = 4 if price <1 else 2
         if side == 'buy':
-        	price = price*1.005
+            price = price*1.005
         else:
-        	price = price*0.995
+            price = price*0.995
         min_tick_size = instrument['min_tick_size']
         if not min_tick_size is None:
-        	min_tick_size = float(min_tick_size)
-        	price = (price//min_tick_size)*min_tick_size
+            min_tick_size = float(min_tick_size)
+            price = (price//min_tick_size)*min_tick_size
         price = round(price,decs)
         return self.place_order(
             instrument = instrument,
