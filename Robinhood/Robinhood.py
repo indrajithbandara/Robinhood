@@ -200,8 +200,11 @@ class Robinhood:
         # if requesting all, return entire object so may paginate with ['next']
         if (stock == ""):
             return res
-
-        return res['results']
+        d = res['results']
+        for s in d:
+            if s['symbol'] == stock:
+                return s
+        return None
 
 
     def instrument(self, id):
@@ -828,7 +831,7 @@ class Robinhood:
         required parameters:
             account             x in self
             instrument          x   in pl
-            symbol              x     in instrument
+            symbol              x   in pl
             type                x   in pl
             time_in_force       x   in pl
             trigger             x   in pl
@@ -853,126 +856,124 @@ class Robinhood:
         assert 'trigger' in payload
         assert 'quantity' in payload
         assert 'side' in payload
+        assert 'symbol' in payload
 
         payload['account'] = self.get_account()['url']
-        instrument = payload.pop('instrument')
-        payload['instrument'] = unquote(instrument['url'])
-        payload['symbol'] = instrument['symbol']
         
         res = self.session.post(self.endpoints['orders'],data = payload)
-        #res.raise_for_status()
-        return Order(res.text,self)
+        try:
+            return Order(res.text,self)
+        except:
+            print(res.text)
 
     def place_market_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         time_in_force = 'gfd',
         side = None
         ):
+        params = locals()
+        params.pop('self')
         assert instrument is not None
+        assert symbol is not None
         assert time_in_force in ['gfd','gtc','ioc','fok','opg']
-        quantity = int(quantity)
+        params['quantity'] = int(quantity)
         assert side in ['buy','sell']
-        price = float(self.last_trade_price(instrument['symbol'])[0][0])
+        price = float(self.last_trade_price(symbol)[0][0])
         decs = 4 if price <1 else 2
         if side == 'buy':
             price = price*1.005
         else:
             price = price*0.995
-        min_tick_size = instrument['min_tick_size']
+        min_tick_size = self.session.get(instrument).json()['min_tick_size']
         if not min_tick_size is None:
             min_tick_size = float(min_tick_size)
             price = (price//min_tick_size)*min_tick_size
-        price = round(price,decs)
-        return self.place_order(
-            instrument = instrument,
-            type = 'market',
-            time_in_force = time_in_force,
-            trigger = 'immediate',
-            quantity = quantity,
-            side = side,
-            price = price
-            )
+        params['price'] = round(price,decs)
+        params['type'] = 'market'
+        params['trigger'] = 'immediate'
+        return self.place_order(**params)
+
+
     def place_limit_order(
         self,
-        quantity = 1,
         instrument = None,
+        symbol = None,
+        quantity = 1,
         price = 1,
         time_in_force = 'gfd',
         side = None
         ):
+        params = locals()
+        params.pop('self')
         assert instrument is not None
+        assert symbol is not None
         assert quantity >= 1
         assert time_in_force is not None
-        price = float(price)
-        quantity = int(quantity)
+        params['price'] = float(price)
+        params['quantity'] = int(quantity)
         assert price > 0
         assert side in ['buy','sell']
-        return self.place_order(
-            instrument = instrument,
-            quantity = quantity,
-            type = 'limit',
-            time_in_force = time_in_force,
-            trigger = 'immediate',
-            price = price,
-            side = side
-            )
+        params['type'] = 'limit'
+        params['trigger'] = 'immediate'
+
+        return self.place_order(**params)
+
     def place_stop_loss_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc',
         side = None
         ):
+        params = locals()
+        params.pop('self')
         assert instrument is not None
+        assert symbol is not None
         assert quantity >= 1
         assert time_in_force in ['gfd','gtc','ioc','fok','opg']
-        stop_price = float(stop_price)
-        quantity = int(quantity)
+        params['stop_price'] = float(stop_price)
+        params['quantity'] = int(quantity)
         assert stop_price > 0
         assert side in ['buy','sell']
-        return self.place_order(
-            instrument = instrument,
-            type = 'market',
-            time_in_force = time_in_force,
-            stop_price = stop_price,
-            price = stop_price,
-            quantity = quantity,
-            trigger = 'stop',
-            side = side
-            )
+        params['type'] = 'market'
+        params['trigger'] = 'stop'
+        params['price'] = stop_price
+        return self.place_order(**params)
+
     def place_stop_limit_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc',
         side = None
         ):
+        params = locals()
+        params.pop('self')
         assert instrument is not None
+        assert symbol is not None
         assert quantity >= 1
         assert time_in_force in ['gfd','gtc','ioc','fok','opg']
-        stop_price = float(stop_price)
-        quantity = int(quantity)
+        params['stop_price'] = float(stop_price)
+        params['quantity'] = int(quantity)
         assert stop_price > 0
         assert side in ['buy','sell']
-        return self.place_order(
-            instrument = instrument,
-            type = 'limit',
-            time_in_force = time_in_force,
-            quantity = quantity,
-            trigger = 'stop',
-            stop_price = stop_price,
-            price = stop_price,
-            side = side
-            )
+        params['type'] = 'limit'
+        params['trigger'] = 'stop'
+        params['price'] = stop_price
+        return self.place_order(**params)
         
 
     def place_market_buy_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         time_in_force = 'gfd'
         ):
@@ -983,6 +984,7 @@ class Robinhood:
     def place_limit_buy_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         price = 1,
         time_in_force = 'gfd'
@@ -994,6 +996,7 @@ class Robinhood:
     def place_stop_loss_buy_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc'
@@ -1006,6 +1009,7 @@ class Robinhood:
     def place_stop_limit_buy_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc'
@@ -1019,6 +1023,7 @@ class Robinhood:
     def place_market_sell_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         time_in_force = 'gfd'
         ):
@@ -1029,6 +1034,7 @@ class Robinhood:
     def place_limit_sell_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         price = 1,
         time_in_force = 'gfd'
@@ -1038,9 +1044,11 @@ class Robinhood:
         params['side'] = 'sell'
         params.pop('self')
         return self.place_limit_order(**params)
+
     def place_stop_loss_sell_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc'
@@ -1053,6 +1061,7 @@ class Robinhood:
     def place_stop_limit_sell_order(
         self,
         instrument = None,
+        symbol = None,
         quantity = 1,
         stop_price = 1,
         time_in_force = 'gtc'

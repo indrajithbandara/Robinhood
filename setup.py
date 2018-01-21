@@ -6,7 +6,7 @@ from setuptools import setup, find_packages
 from setuptools.command.test import test as TestCommand
 
 HERE = path.abspath(path.dirname(__file__))
-__version__ = '1.0.7.17'
+__version__ = '1.0.7.23'
 
 REQUIRES = [
     'requests>=2.13.0,<=2.18.4',
