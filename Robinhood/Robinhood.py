@@ -910,8 +910,10 @@ class Robinhood:
         params.pop('self')
         assert instrument is not None
         assert symbol is not None
+        print(quantity)
         assert quantity >= 1
         assert time_in_force is not None
+
         params['price'] = float(price)
         params['quantity'] = int(quantity)
         assert price > 0
